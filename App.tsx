@@ -483,42 +483,65 @@ const PlanningPortal: React.FC<{
   activeCycles: string[],
   onToggleCycle: (c: string) => void
 }> = ({ plans, onSavePlan, onDeletePlan, users, currentCycle, activeCycles, onToggleCycle }) => {
-  const [formData, setFormData] = useState<Partial<AuditPlan & AuditSchedule>>({
-    cycle: currentCycle,
-    prodi: PRODI_LIST[0],
-    isActive: true,
+  const [selectedProdis, setSelectedProdis] = useState<string[]>([]);
+  const [selectedAuditors, setSelectedAuditors] = useState<string[]>([]);
+  const [formData, setFormData] = useState<Partial<AuditSchedule>>({
     fillingStart: '',
     fillingEnd: '',
     visitStart: '',
     visitEnd: ''
   });
 
+  const auditors = users.filter(u => u.role === UserRole.AUDITOR);
+
+  const toggleProdi = (p: string) => {
+    setSelectedProdis(prev => prev.includes(p) ? prev.filter(item => item !== p) : [...prev, p]);
+  };
+
+  const toggleAuditor = (id: string) => {
+    setSelectedAuditors(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const handleSelectAllProdi = () => {
+    if (selectedProdis.length === PRODI_LIST.length) setSelectedProdis([]);
+    else setSelectedProdis([...PRODI_LIST]);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if(!formData.fillingStart || !formData.fillingEnd || !formData.visitStart || !formData.visitEnd) {
-      alert('Semua tanggal wajib diisi!');
+    if (selectedProdis.length === 0) {
+      alert('Pilih minimal satu program studi!');
+      return;
+    }
+    if (!formData.fillingStart || !formData.fillingEnd || !formData.visitStart || !formData.visitEnd) {
+      alert('Semua tanggal jadwal wajib diisi!');
       return;
     }
 
-    const newPlan: AuditPlan = {
-      id: `plan-${Date.now()}`,
-      prodi: formData.prodi!,
-      cycle: formData.cycle!,
-      isActive: true,
-      auditorIds: [],
-      schedule: { 
-        fillingStart: formData.fillingStart || '', 
-        fillingEnd: formData.fillingEnd || '', 
-        deskEvalStart: '', 
-        deskEvalEnd: '', 
-        visitStart: formData.visitStart || '', 
-        visitEnd: formData.visitEnd || '', 
-        rtmStart: '', 
-        rtmEnd: '' 
-      }
-    };
-    onSavePlan(newPlan);
-    alert('Perencanaan berhasil disimpan!');
+    selectedProdis.forEach(prodi => {
+      const newPlan: AuditPlan = {
+        id: `plan-${Date.now()}-${prodi.replace(/\s+/g, '')}`,
+        prodi,
+        cycle: currentCycle,
+        isActive: true,
+        auditorIds: selectedAuditors,
+        schedule: { 
+          fillingStart: formData.fillingStart || '', 
+          fillingEnd: formData.fillingEnd || '', 
+          deskEvalStart: '', 
+          deskEvalEnd: '', 
+          visitStart: formData.visitStart || '', 
+          visitEnd: formData.visitEnd || '', 
+          rtmStart: '', 
+          rtmEnd: '' 
+        }
+      };
+      onSavePlan(newPlan);
+    });
+
+    alert('Perencanaan berhasil disimpan untuk ' + selectedProdis.length + ' prodi!');
+    setSelectedProdis([]);
+    setSelectedAuditors([]);
   };
 
   return (
@@ -557,77 +580,133 @@ const PlanningPortal: React.FC<{
 
       {/* Tambah Perencanaan Audit Section */}
       <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-2xl font-black text-gray-800">Tambah Perencanaan Audit ({currentCycle})</h3>
+        <div className="mb-8 border-b border-gray-100 pb-6">
+          <h3 className="text-2xl font-black text-gray-800">Tambah Rincian Perencanaan Audit ({currentCycle})</h3>
+          <p className="text-xs text-gray-400 font-bold mt-1">Atur jadwal pengisian untuk Auditi dan verifikasi untuk Auditor per Program Studi.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="space-y-4">
-              <h4 className="text-xs font-black text-emerald-600 uppercase tracking-widest border-b pb-2">Identitas Audit</h4>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Auditee (Program Studi)</label>
-                <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-emerald-200" value={formData.prodi} onChange={e => setFormData({...formData, prodi: e.target.value})}>
-                  {PRODI_LIST.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+        <form onSubmit={handleSubmit} className="space-y-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Bagian Auditi */}
+            <div className="space-y-6">
+              <div className="flex justify-between items-center border-b border-blue-50 pb-3">
+                <h4 className="text-sm font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fas fa-user-graduate"></i> 1. Rincian Auditi & Jadwal Pengisian
+                </h4>
+                <button type="button" onClick={handleSelectAllProdi} className="text-[10px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-tighter bg-blue-50 px-3 py-1 rounded-lg">
+                  {selectedProdis.length === PRODI_LIST.length ? 'Hapus Semua' : 'Pilih Semua Prodi'}
+                </button>
               </div>
+
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tahun Siklus</label>
-                <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-emerald-200" value={formData.cycle} onChange={e => setFormData({...formData, cycle: e.target.value})}>
-                  {CYCLE_OPTIONS.map(c => <option key={c} value={c}>TAHUN {c}</option>)}
-                </select>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Daftar List Prodi (Pilih satu atau lebih)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 no-scrollbar">
+                  {PRODI_LIST.map(p => (
+                    <button 
+                      key={p} type="button" 
+                      onClick={() => toggleProdi(p)}
+                      className={`text-[10px] font-bold py-2 px-3 rounded-xl border-2 transition-all ${selectedProdis.includes(p) ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-200'}`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Tanggal Mulai Pengisian</label>
+                  <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingStart} onChange={e => setFormData({...formData, fillingStart: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Tanggal Akhir Pengisian</label>
+                  <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingEnd} onChange={e => setFormData({...formData, fillingEnd: e.target.value})} required />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest border-b pb-2">Jadwal Pengisian Auditi</h4>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Mulai</label>
-                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingStart} onChange={e => setFormData({...formData, fillingStart: e.target.value})} required />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Selesai</label>
-                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingEnd} onChange={e => setFormData({...formData, fillingEnd: e.target.value})} required />
-              </div>
-            </div>
+            {/* Bagian Auditor */}
+            <div className="space-y-6">
+              <h4 className="text-sm font-black text-purple-600 uppercase tracking-widest border-b border-purple-50 pb-3 flex items-center gap-2">
+                <i className="fas fa-user-shield"></i> 2. Rincian Auditor & Jadwal Audit
+              </h4>
 
-            <div className="space-y-4">
-              <h4 className="text-xs font-black text-purple-600 uppercase tracking-widest border-b pb-2">Jadwal Audit Mutu (Auditor)</h4>
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Mulai</label>
-                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitStart} onChange={e => setFormData({...formData, visitStart: e.target.value})} required />
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Daftar Auditor Yang Bertugas</label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 no-scrollbar">
+                  {auditors.length === 0 && <p className="text-[10px] text-gray-400 italic col-span-2 text-center py-4">Belum ada user dengan role Auditor.</p>}
+                  {auditors.map(u => (
+                    <button 
+                      key={u.id} type="button" 
+                      onClick={() => toggleAuditor(u.id)}
+                      className={`text-[10px] font-bold py-2 px-3 rounded-xl border-2 transition-all ${selectedAuditors.includes(u.id) ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-purple-200'}`}
+                    >
+                      {u.username}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Selesai</label>
-                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitEnd} onChange={e => setFormData({...formData, visitEnd: e.target.value})} required />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Tanggal Mulai Audit</label>
+                  <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitStart} onChange={e => setFormData({...formData, visitStart: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Tanggal Akhir Audit</label>
+                  <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitEnd} onChange={e => setFormData({...formData, visitEnd: e.target.value})} required />
+                </div>
               </div>
             </div>
           </div>
-          <button type="submit" className="w-full py-4 bg-gray-800 text-white font-black rounded-xl hover:bg-black uppercase tracking-widest shadow-xl transition-all">Simpan Perencanaan Audit</button>
+          
+          <div className="pt-6">
+            <button type="submit" className="w-full py-5 bg-gray-900 text-white font-black rounded-2xl hover:bg-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-[0.98]">
+              SIMPAN RINCIAN PERENCANAAN AUDIT ({selectedProdis.length} PRODI)
+            </button>
+          </div>
         </form>
       </div>
 
+      {/* Rincian Perencanaan List */}
       <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
-         <h3 className="text-xl font-black text-gray-800 mb-6">Daftar Rincian Perencanaan</h3>
+         <div className="flex justify-between items-center mb-8">
+            <h3 className="text-xl font-black text-gray-800">Daftar Rincian Jadwal Per Prodi ({currentCycle})</h3>
+            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-4 py-1 rounded-full uppercase">Total: {plans.filter(p => p.cycle === currentCycle).length} Perencanaan</span>
+         </div>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {plans.map(p => (
-               <div key={p.id} className="bg-gray-50 p-6 rounded-2xl border border-gray-200 flex justify-between items-center group">
-                  <div>
-                     <p className="text-[10px] font-black text-emerald-600 uppercase">{p.cycle}</p>
-                     <h4 className="font-black text-gray-800 text-sm">{p.prodi}</h4>
-                     <div className="flex gap-4 mt-2">
+            {plans.filter(p => p.cycle === currentCycle).length === 0 && <p className="text-center py-10 text-gray-400 font-bold italic col-span-2">Belum ada perencanaan untuk siklus {currentCycle}.</p>}
+            {plans.filter(p => p.cycle === currentCycle).map(p => (
+               <div key={p.id} className="bg-gray-50 p-6 rounded-3xl border border-gray-200 flex justify-between items-center group hover:bg-white hover:border-emerald-200 transition-all">
+                  <div className="flex-1">
+                     <div className="flex items-center gap-2 mb-1">
+                       <h4 className="font-black text-gray-800 text-sm">{p.prodi}</h4>
+                       {p.isActive && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>}
+                     </div>
+                     <div className="grid grid-cols-2 gap-4 mt-3 border-t border-gray-100 pt-3">
                         <div>
-                           <p className="text-[8px] font-black text-gray-400 uppercase">Jadwal Auditi</p>
+                           <p className="text-[8px] font-black text-blue-500 uppercase flex items-center gap-1"><i className="fas fa-calendar-day"></i> Jadwal Auditi</p>
                            <p className="text-[10px] font-bold text-gray-600">{p.schedule.fillingStart} s/d {p.schedule.fillingEnd}</p>
                         </div>
                         <div>
-                           <p className="text-[8px] font-black text-gray-400 uppercase">Jadwal Auditor</p>
+                           <p className="text-[8px] font-black text-purple-500 uppercase flex items-center gap-1"><i className="fas fa-calendar-check"></i> Jadwal Auditor</p>
                            <p className="text-[10px] font-bold text-gray-600">{p.schedule.visitStart} s/d {p.schedule.visitEnd}</p>
                         </div>
                      </div>
+                     {p.auditorIds.length > 0 && (
+                       <div className="mt-2 flex items-center gap-2">
+                          <p className="text-[8px] font-black text-gray-400 uppercase">Petugas Auditor:</p>
+                          <div className="flex gap-1">
+                             {p.auditorIds.map(aid => {
+                               const uname = users.find(u => u.id === aid)?.username || 'Unknown';
+                               return <span key={aid} className="text-[8px] font-black bg-gray-200 text-gray-600 px-2 py-0.5 rounded-md">{uname}</span>;
+                             })}
+                          </div>
+                       </div>
+                     )}
                   </div>
-                  <button onClick={() => onDeletePlan(p.id)} className="p-3 text-red-400 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all">
-                     <i className="fas fa-trash"></i>
+                  <button onClick={() => onDeletePlan(p.id)} className="p-3 text-red-300 hover:text-red-500 rounded-xl transition-all ml-4">
+                     <i className="fas fa-trash-can"></i>
                   </button>
                </div>
             ))}
