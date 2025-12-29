@@ -163,11 +163,19 @@ const App: React.FC = () => {
 
   const savePlan = (plan: AuditPlan) => {
     const newPlans = [...auditPlans];
-    const index = newPlans.findIndex(p => p.id === plan.id);
+    const index = newPlans.findIndex(p => p.id === plan.id || (p.prodi === plan.prodi && p.cycle === plan.cycle));
     if (index > -1) newPlans[index] = plan;
     else newPlans.push(plan);
     setAuditPlans(newPlans);
     saveToLocal('spmi_audit_plans', newPlans);
+  }
+
+  const deletePlan = (id: string) => {
+    if(confirm('Hapus perencanaan audit ini?')) {
+      const newPlans = auditPlans.filter(p => p.id !== id);
+      setAuditPlans(newPlans);
+      saveToLocal('spmi_audit_plans', newPlans);
+    }
   }
 
   const saveDocument = (doc: SPMIDocument) => {
@@ -324,9 +332,9 @@ const App: React.FC = () => {
           {activeTab === 'p4_peningkatan' && <DocumentPortal title="Dokumen Peningkatan (P4)" categories={['Peningkatan']} documents={spmiDocuments} onSave={saveDocument} onDelete={deleteDocument} isReadOnly={!isAdmin} />}
           
           {activeTab === 'dashboard' && <Dashboard auditData={auditData} standards={standards} correctiveActions={correctiveActions} currentCycle={currentCycle} />}
-          {activeTab === 'audit' && <AuditPortal auditData={auditData} onSave={saveAuditEntry} currentUser={currentUser} standards={standards} currentCycle={currentCycle} activeCycles={activeCycles} />}
+          {activeTab === 'audit' && <AuditPortal auditData={auditData} onSave={saveAuditEntry} currentUser={currentUser} standards={standards} currentCycle={currentCycle} activeCycles={activeCycles} auditPlans={auditPlans} />}
           {activeTab === 'corrective' && <CorrectiveActionPortal auditData={auditData} correctiveActions={correctiveActions} onSavePTK={savePTK} currentUser={currentUser} standards={standards} currentCycle={currentCycle} activeCycles={activeCycles} />}
-          {activeTab === 'planning' && <PlanningPortal plans={auditPlans} onSavePlan={savePlan} users={users} currentCycle={currentCycle} activeCycles={activeCycles} onToggleCycle={toggleCycleStatus} />}
+          {activeTab === 'planning' && <PlanningPortal plans={auditPlans} onSavePlan={savePlan} onDeletePlan={deletePlan} users={users} currentCycle={currentCycle} activeCycles={activeCycles} onToggleCycle={toggleCycleStatus} />}
           {activeTab === 'users' && <UserManagement users={users} onSaveUser={saveUser} onDeleteUser={deleteUser} currentUser={currentUser} />}
           {activeTab === 'settings' && <StandardSettings standards={standards} onSave={saveStandards} currentCycle={currentCycle} />}
           {activeTab === 'reports' && <Reports auditData={auditData} standards={standards} currentCycle={currentCycle} currentUser={currentUser} />}
@@ -469,26 +477,45 @@ const DocumentPortal: React.FC<{
 const PlanningPortal: React.FC<{ 
   plans: AuditPlan[], 
   onSavePlan: (p: AuditPlan) => void, 
+  onDeletePlan: (id: string) => void,
   users: User[], 
   currentCycle: string,
   activeCycles: string[],
   onToggleCycle: (c: string) => void
-}> = ({ plans, onSavePlan, users, currentCycle, activeCycles, onToggleCycle }) => {
-  const [formData, setFormData] = useState<Partial<AuditPlan>>({
+}> = ({ plans, onSavePlan, onDeletePlan, users, currentCycle, activeCycles, onToggleCycle }) => {
+  const [formData, setFormData] = useState<Partial<AuditPlan & AuditSchedule>>({
     cycle: currentCycle,
     prodi: PRODI_LIST[0],
     isActive: true,
+    fillingStart: '',
+    fillingEnd: '',
+    visitStart: '',
+    visitEnd: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if(!formData.fillingStart || !formData.fillingEnd || !formData.visitStart || !formData.visitEnd) {
+      alert('Semua tanggal wajib diisi!');
+      return;
+    }
+
     const newPlan: AuditPlan = {
       id: `plan-${Date.now()}`,
       prodi: formData.prodi!,
       cycle: formData.cycle!,
       isActive: true,
       auditorIds: [],
-      schedule: { fillingStart: '', fillingEnd: '', deskEvalStart: '', deskEvalEnd: '', visitStart: '', visitEnd: '', rtmStart: '', rtmEnd: '' }
+      schedule: { 
+        fillingStart: formData.fillingStart || '', 
+        fillingEnd: formData.fillingEnd || '', 
+        deskEvalStart: '', 
+        deskEvalEnd: '', 
+        visitStart: formData.visitStart || '', 
+        visitEnd: formData.visitEnd || '', 
+        rtmStart: '', 
+        rtmEnd: '' 
+      }
     };
     onSavePlan(newPlan);
     alert('Perencanaan berhasil disimpan!');
@@ -496,6 +523,7 @@ const PlanningPortal: React.FC<{
 
   return (
     <div className="space-y-8">
+      {/* Manajemen PPEPP Section */}
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-emerald-100">
          <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-black text-emerald-900 flex items-center gap-3">
@@ -527,28 +555,83 @@ const PlanningPortal: React.FC<{
          </div>
       </div>
 
+      {/* Tambah Perencanaan Audit Section */}
       <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-2xl font-black text-gray-800">Tambah Perencanaan Audit ({currentCycle})</h3>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Auditee (Prodi)</label>
-              <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none" value={formData.prodi} onChange={e => setFormData({...formData, prodi: e.target.value})}>
-                {PRODI_LIST.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-emerald-600 uppercase tracking-widest border-b pb-2">Identitas Audit</h4>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Auditee (Program Studi)</label>
+                <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-emerald-200" value={formData.prodi} onChange={e => setFormData({...formData, prodi: e.target.value})}>
+                  {PRODI_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tahun Siklus</label>
+                <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-emerald-200" value={formData.cycle} onChange={e => setFormData({...formData, cycle: e.target.value})}>
+                  {CYCLE_OPTIONS.map(c => <option key={c} value={c}>TAHUN {c}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Siklus</label>
-              <select className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none" value={formData.cycle} onChange={e => setFormData({...formData, cycle: e.target.value})}>
-                {CYCLE_OPTIONS.map(c => <option key={c} value={c}>TAHUN {c}</option>)}
-              </select>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest border-b pb-2">Jadwal Pengisian Auditi</h4>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Mulai</label>
+                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingStart} onChange={e => setFormData({...formData, fillingStart: e.target.value})} required />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Selesai</label>
+                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-blue-200" value={formData.fillingEnd} onChange={e => setFormData({...formData, fillingEnd: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-purple-600 uppercase tracking-widest border-b pb-2">Jadwal Audit Mutu (Auditor)</h4>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Mulai</label>
+                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitStart} onChange={e => setFormData({...formData, visitStart: e.target.value})} required />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Tanggal Selesai</label>
+                <input type="date" className="w-full p-4 bg-gray-50 rounded-xl font-bold text-sm outline-none border border-transparent focus:border-purple-200" value={formData.visitEnd} onChange={e => setFormData({...formData, visitEnd: e.target.value})} required />
+              </div>
             </div>
           </div>
-          <button type="submit" className="w-full py-4 bg-gray-800 text-white font-black rounded-xl hover:bg-gray-900 uppercase tracking-widest shadow-lg">Simpan Perencanaan</button>
+          <button type="submit" className="w-full py-4 bg-gray-800 text-white font-black rounded-xl hover:bg-black uppercase tracking-widest shadow-xl transition-all">Simpan Perencanaan Audit</button>
         </form>
+      </div>
+
+      <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
+         <h3 className="text-xl font-black text-gray-800 mb-6">Daftar Rincian Perencanaan</h3>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {plans.map(p => (
+               <div key={p.id} className="bg-gray-50 p-6 rounded-2xl border border-gray-200 flex justify-between items-center group">
+                  <div>
+                     <p className="text-[10px] font-black text-emerald-600 uppercase">{p.cycle}</p>
+                     <h4 className="font-black text-gray-800 text-sm">{p.prodi}</h4>
+                     <div className="flex gap-4 mt-2">
+                        <div>
+                           <p className="text-[8px] font-black text-gray-400 uppercase">Jadwal Auditi</p>
+                           <p className="text-[10px] font-bold text-gray-600">{p.schedule.fillingStart} s/d {p.schedule.fillingEnd}</p>
+                        </div>
+                        <div>
+                           <p className="text-[8px] font-black text-gray-400 uppercase">Jadwal Auditor</p>
+                           <p className="text-[10px] font-bold text-gray-600">{p.schedule.visitStart} s/d {p.schedule.visitEnd}</p>
+                        </div>
+                     </div>
+                  </div>
+                  <button onClick={() => onDeletePlan(p.id)} className="p-3 text-red-400 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all">
+                     <i className="fas fa-trash"></i>
+                  </button>
+               </div>
+            ))}
+         </div>
       </div>
     </div>
   );
@@ -592,7 +675,8 @@ const AuditPortal: React.FC<{
   standards: Standard[];
   currentCycle: string;
   activeCycles: string[];
-}> = ({ auditData, onSave, currentUser, standards, currentCycle, activeCycles }) => {
+  auditPlans: AuditPlan[];
+}> = ({ auditData, onSave, currentUser, standards, currentCycle, activeCycles, auditPlans }) => {
   const [selectedStandard, setSelectedStandard] = useState(standards[0]?.id);
   
   const availableProdis = useMemo(() => {
@@ -604,10 +688,51 @@ const AuditPortal: React.FC<{
 
   const [selectedProdi, setSelectedProdi] = useState<string>(availableProdis[0] || '');
 
+  // Helper function to check if date is within schedule
+  const isWithinSchedule = (start: string, end: string) => {
+    if (!start || !end) return true; // Default to true if no schedule set
+    const now = new Date();
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    endDate.setHours(23, 59, 59); // Include the whole end day
+    return now >= startDate && now <= endDate;
+  };
+
+  const plan = useMemo(() => {
+    return auditPlans.find(p => p.prodi === selectedProdi && String(p.cycle) === String(currentCycle));
+  }, [auditPlans, selectedProdi, currentCycle]);
+
+  const scheduleStatus = useMemo(() => {
+    if (!plan) return { auditeeOpen: true, auditorOpen: true, message: '' };
+    
+    const auditeeOpen = isWithinSchedule(plan.schedule.fillingStart, plan.schedule.fillingEnd);
+    const auditorOpen = isWithinSchedule(plan.schedule.visitStart, plan.schedule.visitEnd);
+    
+    let message = '';
+    if (currentUser.role === UserRole.AUDITEE && !auditeeOpen) {
+      message = `Maaf, masa pengisian borang untuk prodi ini adalah ${plan.schedule.fillingStart} s/d ${plan.schedule.fillingEnd}.`;
+    } else if (currentUser.role === UserRole.AUDITOR && !auditorOpen) {
+      message = `Maaf, masa audit mutu oleh auditor untuk prodi ini adalah ${plan.schedule.visitStart} s/d ${plan.schedule.visitEnd}.`;
+    }
+
+    return { auditeeOpen, auditorOpen, message };
+  }, [plan, currentUser]);
+
   const handleSave = (indicatorId: string, updates: Partial<AuditEntry>) => {
+     // 1. Check PPEPP Global Status
      const isCycleLocked = !activeCycles.includes(currentCycle);
      if (isCycleLocked && currentUser.role === UserRole.AUDITEE) {
-        alert(`Borang pengisian siklus tahun ${currentCycle} telah ditutup oleh Admin.`);
+        alert(`Borang pengisian siklus tahun ${currentCycle} telah ditutup oleh Admin secara global.`);
+        return;
+     }
+
+     // 2. Check Specific Audit Plan Schedule
+     if (currentUser.role === UserRole.AUDITEE && !scheduleStatus.auditeeOpen) {
+        alert(scheduleStatus.message);
+        return;
+     }
+     if (currentUser.role === UserRole.AUDITOR && !scheduleStatus.auditorOpen) {
+        alert(scheduleStatus.message);
         return;
      }
 
@@ -633,17 +758,33 @@ const AuditPortal: React.FC<{
   };
 
   const isCycleLocked = !activeCycles.includes(currentCycle) && currentUser.role === UserRole.AUDITEE;
+  const isAuditeeDisabled = isCycleLocked || (currentUser.role === UserRole.AUDITEE && !scheduleStatus.auditeeOpen) || currentUser.role === UserRole.AUDITOR;
+  const isAuditorDisabled = (currentUser.role === UserRole.AUDITOR && !scheduleStatus.auditorOpen) || currentUser.role === UserRole.AUDITEE;
 
   return (
     <div className="space-y-6">
+       {/* Global Warning */}
        {isCycleLocked && (
-          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl flex items-center gap-5 animate-in slide-in-from-top duration-500 shadow-sm">
+          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl flex items-center gap-5 animate-in slide-in-from-top duration-500 shadow-sm mb-4">
              <div className="bg-red-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
                 <i className="fas fa-lock text-xl"></i>
              </div>
              <div>
-                <h4 className="text-red-900 font-black uppercase text-lg leading-none">Borang {currentCycle} Terkunci</h4>
-                <p className="text-red-600 text-xs font-bold mt-1">Hanya dapat melihat data. Admin telah menutup akses borang audit utama.</p>
+                <h4 className="text-red-900 font-black uppercase text-lg leading-none">Borang {currentCycle} Terkunci Global</h4>
+                <p className="text-red-600 text-xs font-bold mt-1">Admin telah menutup akses borang audit utama untuk seluruh program studi.</p>
+             </div>
+          </div>
+       )}
+
+       {/* Schedule Warning */}
+       {scheduleStatus.message && (
+          <div className="bg-orange-50 border-2 border-orange-200 p-6 rounded-3xl flex items-center gap-5 animate-in slide-in-from-top duration-500 shadow-sm mb-4">
+             <div className="bg-orange-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
+                <i className="fas fa-calendar-times text-xl"></i>
+             </div>
+             <div>
+                <h4 className="text-orange-900 font-black uppercase text-lg leading-none">Diluar Jadwal Pengisian</h4>
+                <p className="text-orange-600 text-xs font-bold mt-1">{scheduleStatus.message}</p>
              </div>
           </div>
        )}
@@ -664,6 +805,12 @@ const AuditPortal: React.FC<{
           <select value={selectedProdi} onChange={e => setSelectedProdi(e.target.value)} className="font-black text-sm outline-none bg-emerald-50 px-4 py-2 rounded-xl text-emerald-700 cursor-pointer">
              {availableProdis.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
+          {plan && (
+            <div className="ml-auto text-right">
+              <p className="text-[8px] font-black text-gray-400 uppercase">Jadwal Aktif Prodi</p>
+              <p className="text-[10px] font-bold text-gray-600">Auditi: {plan.schedule.fillingStart} s/d {plan.schedule.fillingEnd}</p>
+            </div>
+          )}
        </div>
        
        <div className="grid grid-cols-1 gap-6">
@@ -689,7 +836,7 @@ const AuditPortal: React.FC<{
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-gray-50">
-                     <div className={`space-y-4 ${currentUser.role === UserRole.AUDITOR || isCycleLocked ? 'opacity-50' : ''}`}>
+                     <div className={`space-y-4 ${isAuditeeDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                            <i className="fas fa-pencil text-emerald-500"></i> Capaian (Auditee)
                         </label>
@@ -697,7 +844,7 @@ const AuditPortal: React.FC<{
                            className={`w-full p-4 bg-gray-50 rounded-2xl font-black text-sm border-2 border-transparent focus:border-emerald-200 outline-none transition-all`}
                            value={entry?.achievementValue || ''}
                            onChange={e => handleSave(ind.id, { achievementValue: e.target.value, status: AuditStatus.PENDING })}
-                           disabled={currentUser.role === UserRole.AUDITOR || isCycleLocked}
+                           disabled={isAuditeeDisabled}
                            placeholder="Nilai capaian..."
                         />
                         <div className="relative">
@@ -705,7 +852,7 @@ const AuditPortal: React.FC<{
                                className={`w-full p-4 pr-12 bg-gray-50 rounded-2xl font-bold text-xs text-blue-600 border-2 border-transparent focus:border-blue-200 outline-none transition-all`}
                                value={entry?.docLink || ''}
                                onChange={e => handleSave(ind.id, { docLink: e.target.value })}
-                               disabled={currentUser.role === UserRole.AUDITOR || isCycleLocked}
+                               disabled={isAuditeeDisabled}
                                placeholder="Link bukti fisik..."
                             />
                             {entry?.docLink && (
@@ -715,7 +862,7 @@ const AuditPortal: React.FC<{
                             )}
                         </div>
                      </div>
-                     <div className={`space-y-4 ${currentUser.role === UserRole.AUDITEE ? 'opacity-50' : ''}`}>
+                     <div className={`space-y-4 ${isAuditorDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                            <i className="fas fa-clipboard-check text-blue-500"></i> Verifikasi (Auditor)
                         </label>
@@ -723,7 +870,7 @@ const AuditPortal: React.FC<{
                            className="w-full p-4 bg-gray-50 rounded-2xl font-black text-sm outline-none transition-all"
                            value={entry?.status || AuditStatus.NOT_FILLED}
                            onChange={e => handleSave(ind.id, { status: e.target.value as AuditStatus })}
-                           disabled={currentUser.role === UserRole.AUDITEE}
+                           disabled={isAuditorDisabled}
                         >
                            {Object.values(AuditStatus).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -733,7 +880,7 @@ const AuditPortal: React.FC<{
                            onChange={e => handleSave(ind.id, { notes: e.target.value })}
                            placeholder="Catatan verifikasi..."
                            rows={2}
-                           disabled={currentUser.role === UserRole.AUDITEE}
+                           disabled={isAuditorDisabled}
                         />
                      </div>
                   </div>
@@ -1052,7 +1199,6 @@ const UserManagement: React.FC<{
   );
 };
 
-// --- KOMPONEN KELOLA STANDAR TERBARU (DIHUBUNGKAN KE LAPORAN HASIL) ---
 const StandardSettings: React.FC<{
   standards: Standard[];
   onSave: (s: Standard[]) => void;
