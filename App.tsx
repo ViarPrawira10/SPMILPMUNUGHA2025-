@@ -633,15 +633,20 @@ const PlanningPortal: React.FC<{
 
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Daftar Auditor Yang Bertugas</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 no-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 no-scrollbar">
                   {auditors.length === 0 && <p className="text-[10px] text-gray-400 italic col-span-2 text-center py-4">Belum ada user dengan role Auditor.</p>}
                   {auditors.map(u => (
                     <button 
                       key={u.id} type="button" 
                       onClick={() => toggleAuditor(u.id)}
-                      className={`text-[10px] font-bold py-2 px-3 rounded-xl border-2 transition-all ${selectedAuditors.includes(u.id) ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-purple-200'}`}
+                      className={`text-[10px] font-bold py-2 px-3 rounded-xl border-2 transition-all flex flex-col items-center ${selectedAuditors.includes(u.id) ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-purple-200'}`}
                     >
-                      {u.username}
+                      <span>{u.username}</span>
+                      {u.assignedProdi && u.assignedProdi.length > 0 && (
+                        <span className={`text-[7px] mt-1 p-0.5 rounded px-2 ${selectedAuditors.includes(u.id) ? 'bg-purple-800 text-purple-100' : 'bg-gray-100 text-gray-400'}`}>
+                          Tugas: {u.assignedProdi.join(', ')}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -677,7 +682,7 @@ const PlanningPortal: React.FC<{
          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {plans.filter(p => p.cycle === currentCycle).length === 0 && <p className="text-center py-10 text-gray-400 font-bold italic col-span-2">Belum ada perencanaan untuk siklus {currentCycle}.</p>}
             {plans.filter(p => p.cycle === currentCycle).map(p => (
-               <div key={p.id} className="bg-gray-50 p-6 rounded-3xl border border-gray-200 flex justify-between items-center group hover:bg-white hover:border-emerald-200 transition-all">
+               <div key={p.id} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex justify-between items-center group hover:bg-white hover:border-emerald-200 transition-all">
                   <div className="flex-1">
                      <div className="flex items-center gap-2 mb-1">
                        <h4 className="font-black text-gray-800 text-sm">{p.prodi}</h4>
@@ -696,7 +701,7 @@ const PlanningPortal: React.FC<{
                      {p.auditorIds.length > 0 && (
                        <div className="mt-2 flex items-center gap-2">
                           <p className="text-[8px] font-black text-gray-400 uppercase">Petugas Auditor:</p>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 flex-wrap">
                              {p.auditorIds.map(aid => {
                                const uname = users.find(u => u.id === aid)?.username || 'Unknown';
                                return <span key={aid} className="text-[8px] font-black bg-gray-200 text-gray-600 px-2 py-0.5 rounded-md">{uname}</span>;
@@ -1193,7 +1198,7 @@ const UserManagement: React.FC<{
   currentUser: User;
 }> = ({ users, onSaveUser, onDeleteUser, currentUser }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<User>>({ role: UserRole.AUDITEE });
+  const [formData, setFormData] = useState<Partial<User>>({ role: UserRole.AUDITEE, assignedProdi: [] });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1207,7 +1212,7 @@ const UserManagement: React.FC<{
       assignedProdi: formData.role === UserRole.AUDITOR ? formData.assignedProdi : undefined
     } as User);
     setIsFormOpen(false);
-    setFormData({ role: UserRole.AUDITEE });
+    setFormData({ role: UserRole.AUDITEE, assignedProdi: [] });
   };
 
   const toggleAssignedProdi = (prodi: string) => {
@@ -1223,35 +1228,62 @@ const UserManagement: React.FC<{
     <div className="space-y-6">
       <div className="flex justify-between items-center">
          <h3 className="text-xl font-black text-gray-800">Manajemen Pengguna</h3>
-         <button onClick={() => { setFormData({ role: UserRole.AUDITEE }); setIsFormOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+         <button onClick={() => { setFormData({ role: UserRole.AUDITEE, assignedProdi: [] }); setIsFormOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
             + Tambah User
          </button>
       </div>
 
       {isFormOpen && (
-         <div className="bg-white p-8 rounded-[2rem] border border-emerald-100 shadow-xl mb-8">
+         <div className="bg-white p-8 rounded-[2rem] border border-emerald-100 shadow-xl mb-8 animate-in slide-in-from-top-4 duration-300">
             <h4 className="text-lg font-black text-emerald-900 mb-6">User Baru</h4>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <input className="p-3 bg-gray-50 rounded-xl font-bold text-sm" placeholder="Username" value={formData.username || ''} onChange={e => setFormData({...formData, username: e.target.value})} required />
-                  <input className="p-3 bg-gray-50 rounded-xl font-bold text-sm" placeholder="Password" value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})} required />
-                  <select className="p-3 bg-gray-50 rounded-xl font-bold text-sm outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
-                     {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Username</label>
+                    <input className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border-2 border-transparent focus:border-emerald-200 outline-none" placeholder="Username" value={formData.username || ''} onChange={e => setFormData({...formData, username: e.target.value})} required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Password</label>
+                    <input className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border-2 border-transparent focus:border-emerald-200 outline-none" placeholder="Password" value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Role Akun</label>
+                    <select className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm outline-none border-2 border-transparent focus:border-emerald-200" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
+                       {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
                </div>
                
                {formData.role === UserRole.AUDITEE && (
-                 <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase block mb-2">Prodi (Auditee)</label>
-                    <select className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm outline-none" value={formData.prodi || ''} onChange={e => setFormData({...formData, prodi: e.target.value})}>
+                 <div className="animate-in fade-in slide-in-from-left-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block mb-2">Homebase Program Studi (Auditee)</label>
+                    <select className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm outline-none border-2 border-transparent focus:border-emerald-200" value={formData.prodi || ''} onChange={e => setFormData({...formData, prodi: e.target.value})}>
                        <option value="">-- Pilih Prodi --</option>
                        {PRODI_LIST.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                  </div>
                )}
 
-               <div className="flex gap-2 pt-4">
-                  <button type="submit" className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-emerald-700">Simpan</button>
+               {formData.role === UserRole.AUDITOR && (
+                 <div className="animate-in fade-in slide-in-from-left-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block mb-2">Penugasan Wilayah Audit (Auditor)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 no-scrollbar">
+                        {PRODI_LIST.map(p => (
+                          <button 
+                            key={p} type="button" 
+                            onClick={() => toggleAssignedProdi(p)}
+                            className={`text-[9px] font-bold py-2 px-1 rounded-lg border-2 transition-all ${ (formData.assignedProdi || []).includes(p) ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm' : 'bg-white border-gray-100 text-gray-500 hover:border-emerald-100'}`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                    </div>
+                    <p className="text-[8px] text-gray-400 mt-2 italic">* Auditor hanya dapat memverifikasi borang prodi yang ditugaskan di sini.</p>
+                 </div>
+               )}
+
+               <div className="flex gap-2 pt-4 border-t border-gray-50">
+                  <button type="submit" className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-emerald-700 transition-all shadow-lg">Simpan Akun</button>
                   <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 bg-gray-200 text-gray-600 py-3 rounded-xl font-black uppercase text-xs hover:bg-gray-300">Batal</button>
                </div>
             </form>
@@ -1260,16 +1292,23 @@ const UserManagement: React.FC<{
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
          {users.map(u => (
-            <div key={u.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-start">
+            <div key={u.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-start group hover:border-emerald-200 transition-all">
                <div>
                   <div className="flex items-center gap-2 mb-1">
                      <span className="font-bold text-gray-800">{u.username}</span>
+                     <span className={`text-[8px] px-2 py-0.5 rounded-full font-black ${u.role === UserRole.ADMIN ? 'bg-red-50 text-red-600' : u.role === UserRole.AUDITOR ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{u.role}</span>
                   </div>
-                  <p className="text-[10px] text-gray-400 font-black uppercase">{u.role}</p>
-                  {u.prodi && <p className="text-[10px] text-emerald-600 font-bold mt-1">{u.prodi}</p>}
+                  {u.prodi && <p className="text-[10px] text-blue-600 font-bold mt-1 flex items-center gap-1"><i className="fas fa-university text-[8px]"></i> {u.prodi}</p>}
+                  {u.assignedProdi && u.assignedProdi.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                       {u.assignedProdi.map(ap => (
+                         <span key={ap} className="text-[7px] font-black bg-purple-50 text-purple-500 px-1.5 py-0.5 rounded border border-purple-100">{ap}</span>
+                       ))}
+                    </div>
+                  )}
                </div>
                {currentUser.role === UserRole.ADMIN && u.username !== 'admin' && (
-                  <button onClick={() => onDeleteUser(u.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><i className="fas fa-trash"></i></button>
+                  <button onClick={() => onDeleteUser(u.id)} className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"><i className="fas fa-trash-can"></i></button>
                )}
             </div>
          ))}
@@ -1449,15 +1488,15 @@ const StandardSettings: React.FC<{
                           </div>
                           <div>
                              <label className="text-[9px] font-black text-gray-400 uppercase block mb-1">Nama Indikator</label>
-                             <input className="w-full p-3 bg-white rounded-xl font-bold text-xs border border-transparent focus:border-emerald-500 outline-none" placeholder="Deskripsi indikator..." value={newIndicator.name} onChange={e => setNewIndicator({...newIndicator, name: e.target.value})} />
+                             <input className="w-full p-3 bg-white rounded-xl font-bold text-sm border-2 border-transparent focus:border-emerald-200 outline-none" placeholder="Deskripsi indikator..." value={newIndicator.name} onChange={e => setNewIndicator({...newIndicator, name: e.target.value})} />
                           </div>
                           <div>
                              <label className="text-[9px] font-black text-gray-400 uppercase block mb-1">Target</label>
-                             <input className="w-full p-3 bg-white rounded-xl font-bold text-xs border border-transparent focus:border-emerald-500 outline-none" placeholder="Misal: >= 90%" value={newIndicator.target} onChange={e => setNewIndicator({...newIndicator, target: e.target.value})} />
+                             <input className="w-full p-3 bg-white rounded-xl font-bold text-sm border-2 border-transparent focus:border-emerald-200 outline-none" placeholder="Misal: >= 90%" value={newIndicator.target} onChange={e => setNewIndicator({...newIndicator, target: e.target.value})} />
                           </div>
                           <div>
                              <label className="text-[9px] font-black text-gray-400 uppercase block mb-1">Capaian/Pengukuran</label>
-                             <input className="w-full p-3 bg-white rounded-xl font-bold text-xs border border-transparent focus:border-emerald-500 outline-none" placeholder="Baseline/Alat ukur..." value={newIndicator.baseline} onChange={e => setNewIndicator({...newIndicator, baseline: e.target.value})} />
+                             <input className="w-full p-3 bg-white rounded-xl font-bold text-sm border-2 border-transparent focus:border-emerald-200 outline-none" placeholder="Baseline/Alat ukur..." value={newIndicator.baseline} onChange={e => setNewIndicator({...newIndicator, baseline: e.target.value})} />
                           </div>
                        </div>
                        <div className="flex gap-2">
